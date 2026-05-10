@@ -33,6 +33,7 @@ function serveStaticFile(filePath: string): Response {
 
 const server = Bun.serve({
   port: PORT,
+  idleTimeout: 0,
   async fetch(req) {
     const url = new URL(req.url);
 
@@ -88,6 +89,16 @@ const server = Bun.serve({
             );
           };
 
+          // Send a comment every 5 s so the connection stays alive during
+          // long API calls (Anthropic story generation, ElevenLabs TTS, etc.)
+          const keepAlive = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(": keep-alive\n\n"));
+            } catch {
+              // stream already closed
+            }
+          }, 5000);
+
           try {
             await generateVideoFromDescription({
               description,
@@ -99,6 +110,7 @@ const server = Bun.serve({
           } catch (err) {
             send({ type: "error", message: String(err) });
           } finally {
+            clearInterval(keepAlive);
             controller.close();
           }
         },
