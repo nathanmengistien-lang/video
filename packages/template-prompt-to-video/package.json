@@ -43,7 +43,7 @@
     "typescript": "5.9.3",
     "uuid": "^13.0.0",
     "yargs": "^18.0.0",
-    "zod-to-json-schema": "^3.24.6"
+    "zod-to-json-schema": "3.23.5"
   },
   "private": true
 }
