@@ -1,0 +1,48 @@
+{
+	"name": "@remotion/promo-pages",
+	"version": "4.0.409",
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"make": "bun --env-file=../.env.bundle bundle.ts",
+		"lint": "tsc && eslint src",
+		"dev": "bun server.ts"
+	},
+	"type": "module",
+	"dependencies": {
+		"@remotion/animated-emoji": "workspace:*",
+		"@remotion/design": "workspace:*",
+		"@remotion/lambda": "workspace:*",
+		"@remotion/lottie": "workspace:*",
+		"@remotion/paths": "workspace:*",
+		"@remotion/player": "workspace:*",
+		"@remotion/shapes": "workspace:*",
+		"@remotion/svg-3d-engine": "workspace:*",
+		"create-video": "workspace:*",
+		"hls.js": "1.5.19",
+		"polished": "4.3.1",
+		"remotion": "workspace:*",
+		"zod": "catalog:",
+		"bun-plugin-tailwind": "0.1.2"
+	},
+	"devDependencies": {
+		"@remotion/eslint-config-internal": "workspace:*",
+		"@eslint/eslintrc": "3.1.0",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"eslint": "catalog:",
+		"eslint-config-next": "15.1.6",
+		"plyr": "3.7.3",
+		"postcss": "8.4.47",
+		"tailwindcss": "4.1.1",
+		"@tailwindcss/cli": "4.1.1",
+		"react": "catalog:",
+		"react-dom": "catalog:",
+		"tailwind-merge": "2.5.2",
+		"clsx": "2.1.1"
+	},
+	"repository": {
+		"url": "https://github.com/remotion-dev/remotion/tree/main/packages/promo-pages"
+	}
+}
