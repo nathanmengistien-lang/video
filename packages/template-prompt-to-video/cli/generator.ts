@@ -1,11 +1,12 @@
 import {
+  claudeStructuredCompletion,
   generateAiImage,
   generateVoice,
   getGenerateImageDescriptionPrompt,
   getGenerateStoryPrompt,
   getTitleFromDescription,
-  openaiStructuredCompletion,
-  setApiKey,
+  setAnthropicApiKey,
+  setOpenAIApiKey,
 } from "./service";
 import {
   StoryMetadataWithDetails,
@@ -68,16 +69,19 @@ class ContentFS {
 
 export async function generateVideoFromDescription({
   description,
-  apiKey,
+  anthropicApiKey,
+  openaiApiKey,
   elevenlabsApiKey,
   onProgress,
 }: {
   description: string;
-  apiKey: string;
+  anthropicApiKey: string;
+  openaiApiKey: string;
   elevenlabsApiKey: string;
   onProgress: (event: ProgressEvent) => void;
 }): Promise<void> {
-  setApiKey(apiKey);
+  setAnthropicApiKey(anthropicApiKey);
+  setOpenAIApiKey(openaiApiKey);
 
   onProgress({ type: "status", message: "Generating title from description…" });
   const title = await getTitleFromDescription(description);
@@ -86,13 +90,13 @@ export async function generateVideoFromDescription({
     type: "status",
     message: `Writing story: "${title}"…`,
   });
-  const storyRes = await openaiStructuredCompletion(
+  const storyRes = await claudeStructuredCompletion(
     getGenerateStoryPrompt(title, description),
     StoryScript,
   );
 
   onProgress({ type: "status", message: "Creating image descriptions…" });
-  const storyWithImagesRes = await openaiStructuredCompletion(
+  const storyWithImagesRes = await claudeStructuredCompletion(
     getGenerateImageDescriptionPrompt(storyRes.text),
     StoryWithImages,
   );

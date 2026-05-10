@@ -7,12 +7,13 @@ import ora from "ora";
 import chalk from "chalk";
 import * as dotenv from "dotenv";
 import {
+  claudeStructuredCompletion,
   generateAiImage,
   generateVoice,
   getGenerateImageDescriptionPrompt,
   getGenerateStoryPrompt,
-  openaiStructuredCompletion,
-  setApiKey,
+  setAnthropicApiKey,
+  setOpenAIApiKey,
 } from "./service";
 import {
   ContentItemWithDetails,
@@ -29,7 +30,8 @@ import { createTimeLineFromStoryWithDetails } from "./timeline";
 dotenv.config({ quiet: true });
 
 interface GenerateOptions {
-  apiKey?: string;
+  anthropicApiKey?: string;
+  openaiApiKey?: string;
   elevenlabsApiKey?: string;
   title?: string;
   topic?: string;
@@ -86,24 +88,42 @@ class ContentFS {
 
 async function generateStory(options: GenerateOptions) {
   try {
-    let apiKey = options.apiKey || process.env.OPENAI_API_KEY;
+    let anthropicApiKey =
+      options.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+    let openaiApiKey = options.openaiApiKey || process.env.OPENAI_API_KEY;
     let elevenlabsApiKey =
       options.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY;
 
-    if (!apiKey) {
+    if (!anthropicApiKey) {
       const response = await prompts({
         type: "password",
-        name: "apiKey",
-        message: "Enter your OpenAI API key:",
+        name: "anthropicApiKey",
+        message: "Enter your Anthropic API key (for story generation):",
         validate: (value) => value.length > 0 || "API key is required",
       });
 
-      if (!response.apiKey) {
-        console.log(chalk.red("API key is required. Exiting..."));
+      if (!response.anthropicApiKey) {
+        console.log(chalk.red("Anthropic API key is required. Exiting..."));
         process.exit(1);
       }
 
-      apiKey = response.apiKey;
+      anthropicApiKey = response.anthropicApiKey;
+    }
+
+    if (!openaiApiKey) {
+      const response = await prompts({
+        type: "password",
+        name: "openaiApiKey",
+        message: "Enter your OpenAI API key (for image generation):",
+        validate: (value) => value.length > 0 || "API key is required",
+      });
+
+      if (!response.openaiApiKey) {
+        console.log(chalk.red("OpenAI API key is required. Exiting..."));
+        process.exit(1);
+      }
+
+      openaiApiKey = response.openaiApiKey;
     }
 
     if (!elevenlabsApiKey) {
@@ -161,15 +181,16 @@ async function generateStory(options: GenerateOptions) {
     };
 
     const storySpinner = ora("Generating story...").start();
-    setApiKey(apiKey!);
-    const storyRes = await openaiStructuredCompletion(
+    setAnthropicApiKey(anthropicApiKey!);
+    setOpenAIApiKey(openaiApiKey!);
+    const storyRes = await claudeStructuredCompletion(
       getGenerateStoryPrompt(title!, topic!),
       StoryScript,
     );
     storySpinner.succeed(chalk.green("Story generated!"));
 
     const descriptionsSpinner = ora("Generating image descriptions...").start();
-    const storyWithImagesRes = await openaiStructuredCompletion(
+    const storyWithImagesRes = await claudeStructuredCompletion(
       getGenerateImageDescriptionPrompt(storyRes.text),
       StoryWithImages,
     );
@@ -236,10 +257,15 @@ yargs(hideBin(process.argv))
     "Generate story timeline for given title and topic",
     (yargs) => {
       return yargs
-        .option("api-key", {
+        .option("anthropic-api-key", {
+          alias: "a",
+          type: "string",
+          description: "Anthropic API key (for story generation)",
+        })
+        .option("openai-api-key", {
           alias: "k",
           type: "string",
-          description: "OpenAI API key",
+          description: "OpenAI API key (for image generation)",
         })
         .option("title", {
           alias: "t",
@@ -255,7 +281,8 @@ yargs(hideBin(process.argv))
     },
     async (argv) => {
       await generateStory({
-        apiKey: argv["api-key"],
+        anthropicApiKey: argv["anthropic-api-key"],
+        openaiApiKey: argv["openai-api-key"],
         title: argv.title,
         topic: argv.topic,
       });
@@ -266,10 +293,15 @@ yargs(hideBin(process.argv))
     "Generate a story (default command)",
     (yargs) => {
       return yargs
-        .option("api-key", {
+        .option("anthropic-api-key", {
+          alias: "a",
+          type: "string",
+          description: "Anthropic API key (for story generation)",
+        })
+        .option("openai-api-key", {
           alias: "k",
           type: "string",
-          description: "OpenAI API key",
+          description: "OpenAI API key (for image generation)",
         })
         .option("title", {
           alias: "t",
@@ -285,7 +317,8 @@ yargs(hideBin(process.argv))
     },
     async (argv) => {
       await generateStory({
-        apiKey: argv["api-key"],
+        anthropicApiKey: argv["anthropic-api-key"],
+        openaiApiKey: argv["openai-api-key"],
         title: argv.title,
         topic: argv.topic,
       });
