@@ -7,14 +7,14 @@ import { IMAGE_HEIGHT, IMAGE_WIDTH } from "../src/lib/constants";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 let anthropicApiKey: string | null = null;
-let openaiApiKey: string | null = null;
+let unsplashAccessKey: string | null = null;
 
 export const setAnthropicApiKey = (key: string) => {
   anthropicApiKey = key;
 };
 
-export const setOpenAIApiKey = (key: string) => {
-  openaiApiKey = key;
+export const setUnsplashAccessKey = (key: string) => {
+  unsplashAccessKey = key;
 };
 
 export const claudeStructuredCompletion = async <T>(
@@ -56,17 +56,12 @@ export const claudeStructuredCompletion = async <T>(
   return schema.parse(toolUse.input);
 };
 
-function saveUint8ArrayToPng(uint8Array: Uint8Array, filePath: string) {
-  const buffer = Buffer.from(uint8Array);
-  fs.writeFileSync(filePath, buffer as Uint8Array);
-}
-
-export const generateAiImage = async ({
-  prompt,
+export const fetchUnsplashImage = async ({
+  query,
   path,
   onRetry,
 }: {
-  prompt: string;
+  query: string;
   path: string;
   onRetry: (attempt: number) => void;
 }) => {
@@ -75,36 +70,42 @@ export const generateAiImage = async ({
   let lastError: Error | null = null;
 
   while (attempt < maxRetries) {
-    const res = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "dall-e-3",
-        prompt,
-        size: `${IMAGE_WIDTH}x${IMAGE_HEIGHT}`,
-        response_format: "b64_json",
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const buffer = Buffer.from(data.data[0].b64_json, "base64");
-      const uint8Array = new Uint8Array(buffer);
-
-      saveUint8ArrayToPng(uint8Array, path);
-      return;
-    } else {
-      lastError = new Error(
-        `OpenAI error (attempt ${attempt + 1}): ${await res.text()}`,
+    try {
+      // Search for a relevant photo
+      const searchRes = await fetch(
+        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=portrait&per_page=1`,
+        { headers: { Authorization: `Client-ID ${unsplashAccessKey}` } },
       );
+
+      if (!searchRes.ok) {
+        throw new Error(`Unsplash search error: ${await searchRes.text()}`);
+      }
+
+      const searchData = await searchRes.json();
+      const photo = searchData.results?.[0];
+
+      if (!photo) {
+        throw new Error(`No Unsplash results for query: "${query}"`);
+      }
+
+      // Download the image at the required dimensions
+      const imageUrl = `${photo.urls.raw}&w=${IMAGE_WIDTH}&h=${IMAGE_HEIGHT}&fit=crop&auto=format`;
+      const imageRes = await fetch(imageUrl);
+
+      if (!imageRes.ok) {
+        throw new Error(`Unsplash image download error: ${imageRes.status}`);
+      }
+
+      const buffer = Buffer.from(await imageRes.arrayBuffer());
+      fs.writeFileSync(path, buffer);
+      return;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
       attempt++;
       if (attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
+        onRetry(attempt);
       }
-      onRetry(attempt);
     }
   }
 

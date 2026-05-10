@@ -1,12 +1,12 @@
 import {
   claudeStructuredCompletion,
-  generateAiImage,
+  fetchUnsplashImage,
   generateVoice,
   getGenerateImageDescriptionPrompt,
   getGenerateStoryPrompt,
   getTitleFromDescription,
   setAnthropicApiKey,
-  setOpenAIApiKey,
+  setUnsplashAccessKey,
 } from "./service";
 import {
   StoryMetadataWithDetails,
@@ -70,18 +70,18 @@ class ContentFS {
 export async function generateVideoFromDescription({
   description,
   anthropicApiKey,
-  openaiApiKey,
+  unsplashAccessKey,
   elevenlabsApiKey,
   onProgress,
 }: {
   description: string;
   anthropicApiKey: string;
-  openaiApiKey: string;
+  unsplashAccessKey: string;
   elevenlabsApiKey: string;
   onProgress: (event: ProgressEvent) => void;
 }): Promise<void> {
   setAnthropicApiKey(anthropicApiKey);
-  setOpenAIApiKey(openaiApiKey);
+  setUnsplashAccessKey(unsplashAccessKey);
 
   onProgress({ type: "status", message: "Generating title from description…" });
   const title = await getTitleFromDescription(description);
@@ -128,8 +128,8 @@ export async function generateVideoFromDescription({
       step: i * 2 + 1,
       total,
     });
-    await generateAiImage({
-      prompt: storyItem.imageDescription,
+    await fetchUnsplashImage({
+      query: storyItem.imageDescription,
       path: contentFs.getImagePath(storyItem.uid),
       onRetry: (attempt) => {
         onProgress({

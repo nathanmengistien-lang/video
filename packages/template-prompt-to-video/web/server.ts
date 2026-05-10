@@ -60,13 +60,13 @@ const server = Bun.serve({
       }
 
       const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-      const openaiApiKey = process.env.OPENAI_API_KEY;
+      const unsplashAccessKey = process.env.UNSPLASH_ACCESS_KEY;
       const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
 
-      if (!anthropicApiKey || !openaiApiKey || !elevenlabsApiKey) {
+      if (!anthropicApiKey || !unsplashAccessKey || !elevenlabsApiKey) {
         const missing = [
           !anthropicApiKey && "ANTHROPIC_API_KEY",
-          !openaiApiKey && "OPENAI_API_KEY",
+          !unsplashAccessKey && "UNSPLASH_ACCESS_KEY",
           !elevenlabsApiKey && "ELEVENLABS_API_KEY",
         ]
           .filter(Boolean)
@@ -92,7 +92,7 @@ const server = Bun.serve({
             await generateVideoFromDescription({
               description,
               anthropicApiKey,
-              openaiApiKey,
+              unsplashAccessKey,
               elevenlabsApiKey,
               onProgress: send,
             });

@@ -8,12 +8,12 @@ import chalk from "chalk";
 import * as dotenv from "dotenv";
 import {
   claudeStructuredCompletion,
-  generateAiImage,
+  fetchUnsplashImage,
   generateVoice,
   getGenerateImageDescriptionPrompt,
   getGenerateStoryPrompt,
   setAnthropicApiKey,
-  setOpenAIApiKey,
+  setUnsplashAccessKey,
 } from "./service";
 import {
   ContentItemWithDetails,
@@ -31,7 +31,7 @@ dotenv.config({ quiet: true });
 
 interface GenerateOptions {
   anthropicApiKey?: string;
-  openaiApiKey?: string;
+  unsplashAccessKey?: string;
   elevenlabsApiKey?: string;
   title?: string;
   topic?: string;
@@ -90,7 +90,8 @@ async function generateStory(options: GenerateOptions) {
   try {
     let anthropicApiKey =
       options.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
-    let openaiApiKey = options.openaiApiKey || process.env.OPENAI_API_KEY;
+    let unsplashAccessKey =
+      options.unsplashAccessKey || process.env.UNSPLASH_ACCESS_KEY;
     let elevenlabsApiKey =
       options.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY;
 
@@ -110,20 +111,20 @@ async function generateStory(options: GenerateOptions) {
       anthropicApiKey = response.anthropicApiKey;
     }
 
-    if (!openaiApiKey) {
+    if (!unsplashAccessKey) {
       const response = await prompts({
         type: "password",
-        name: "openaiApiKey",
-        message: "Enter your OpenAI API key (for image generation):",
-        validate: (value) => value.length > 0 || "API key is required",
+        name: "unsplashAccessKey",
+        message: "Enter your Unsplash Access Key (for images):",
+        validate: (value) => value.length > 0 || "Access key is required",
       });
 
-      if (!response.openaiApiKey) {
-        console.log(chalk.red("OpenAI API key is required. Exiting..."));
+      if (!response.unsplashAccessKey) {
+        console.log(chalk.red("Unsplash Access Key is required. Exiting..."));
         process.exit(1);
       }
 
-      openaiApiKey = response.openaiApiKey;
+      unsplashAccessKey = response.unsplashAccessKey;
     }
 
     if (!elevenlabsApiKey) {
@@ -182,7 +183,7 @@ async function generateStory(options: GenerateOptions) {
 
     const storySpinner = ora("Generating story...").start();
     setAnthropicApiKey(anthropicApiKey!);
-    setOpenAIApiKey(openaiApiKey!);
+    setUnsplashAccessKey(unsplashAccessKey!);
     const storyRes = await claudeStructuredCompletion(
       getGenerateStoryPrompt(title!, topic!),
       StoryScript,
@@ -218,11 +219,11 @@ async function generateStory(options: GenerateOptions) {
     for (let i = 0; i < storyWithDetails.content.length; i++) {
       const storyItem = storyWithDetails.content[i];
       imagesSpinner.text = `[${i * 2 + 1}/${storyWithDetails.content.length * 2}] Generating image for ${storyItem.text}`;
-      await generateAiImage({
-        prompt: storyItem.imageDescription,
+      await fetchUnsplashImage({
+        query: storyItem.imageDescription,
         path: contentFs.getImagePath(storyItem.uid),
         onRetry: (attempt) => {
-          imagesSpinner.text = `[${i * 2 + 1}/${storyWithDetails.content.length * 2}] Generating image for ${storyItem.text} (retry ${attempt + 1})`;
+          imagesSpinner.text = `[${i * 2 + 1}/${storyWithDetails.content.length * 2}] Fetching image for ${storyItem.text} (retry ${attempt + 1})`;
         },
       });
       imagesSpinner.text = `[${i * 2 + 2}/${storyWithDetails.content.length * 2}] Generating voice for ${storyItem.text}`;
@@ -262,10 +263,10 @@ yargs(hideBin(process.argv))
           type: "string",
           description: "Anthropic API key (for story generation)",
         })
-        .option("openai-api-key", {
-          alias: "k",
+        .option("unsplash-access-key", {
+          alias: "u",
           type: "string",
-          description: "OpenAI API key (for image generation)",
+          description: "Unsplash Access Key (for images)",
         })
         .option("title", {
           alias: "t",
@@ -282,7 +283,7 @@ yargs(hideBin(process.argv))
     async (argv) => {
       await generateStory({
         anthropicApiKey: argv["anthropic-api-key"],
-        openaiApiKey: argv["openai-api-key"],
+        unsplashAccessKey: argv["unsplash-access-key"],
         title: argv.title,
         topic: argv.topic,
       });
@@ -298,10 +299,10 @@ yargs(hideBin(process.argv))
           type: "string",
           description: "Anthropic API key (for story generation)",
         })
-        .option("openai-api-key", {
-          alias: "k",
+        .option("unsplash-access-key", {
+          alias: "u",
           type: "string",
-          description: "OpenAI API key (for image generation)",
+          description: "Unsplash Access Key (for images)",
         })
         .option("title", {
           alias: "t",
@@ -318,7 +319,7 @@ yargs(hideBin(process.argv))
     async (argv) => {
       await generateStory({
         anthropicApiKey: argv["anthropic-api-key"],
-        openaiApiKey: argv["openai-api-key"],
+        unsplashAccessKey: argv["unsplash-access-key"],
         title: argv.title,
         topic: argv.topic,
       });
