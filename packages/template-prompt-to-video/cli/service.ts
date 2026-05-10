@@ -56,6 +56,32 @@ export const claudeStructuredCompletion = async <T>(
   return schema.parse(toolUse.input);
 };
 
+const STOP_WORDS = new Set([
+  "a", "an", "the", "of", "in", "on", "at", "to", "for", "with",
+  "and", "or", "but", "is", "are", "was", "were", "be", "been",
+  "this", "that", "its", "their", "from", "into", "by", "as",
+]);
+
+function fallbackQuery(query: string): string {
+  const word = query
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .find((w) => w.length > 3 && !STOP_WORDS.has(w));
+  return word ?? query.split(/\s+/)[0];
+}
+
+async function unsplashSearch(q: string): Promise<string | null> {
+  const res = await fetch(
+    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&orientation=portrait&per_page=1`,
+    { headers: { Authorization: `Client-ID ${unsplashAccessKey}` } },
+  );
+  if (!res.ok) throw new Error(`Unsplash search error: ${await res.text()}`);
+  const data = await res.json();
+  const photo = data.results?.[0];
+  return photo ? photo.urls.raw : null;
+}
+
 export const fetchUnsplashImage = async ({
   query,
   path,
@@ -71,25 +97,18 @@ export const fetchUnsplashImage = async ({
 
   while (attempt < maxRetries) {
     try {
-      // Search for a relevant photo
-      const searchRes = await fetch(
-        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=portrait&per_page=1`,
-        { headers: { Authorization: `Client-ID ${unsplashAccessKey}` } },
-      );
+      let rawUrl = await unsplashSearch(query);
 
-      if (!searchRes.ok) {
-        throw new Error(`Unsplash search error: ${await searchRes.text()}`);
+      if (!rawUrl) {
+        const simple = fallbackQuery(query);
+        rawUrl = await unsplashSearch(simple);
       }
 
-      const searchData = await searchRes.json();
-      const photo = searchData.results?.[0];
-
-      if (!photo) {
+      if (!rawUrl) {
         throw new Error(`No Unsplash results for query: "${query}"`);
       }
 
-      // Download the image at the required dimensions
-      const imageUrl = `${photo.urls.raw}&w=${IMAGE_WIDTH}&h=${IMAGE_HEIGHT}&fit=crop&auto=format`;
+      const imageUrl = `${rawUrl}&w=${IMAGE_WIDTH}&h=${IMAGE_HEIGHT}&fit=crop&auto=format`;
       const imageRes = await fetch(imageUrl);
 
       if (!imageRes.ok) {
