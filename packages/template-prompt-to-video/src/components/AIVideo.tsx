@@ -1,12 +1,11 @@
-import { AbsoluteFill, Sequence, staticFile, useVideoConfig } from "remotion";
+import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import { z } from "zod";
-import { Audio } from "@remotion/media";
 import { TimelineSchema } from "../lib/types";
 import { FPS, INTRO_DURATION } from "../lib/constants";
 import { loadFont } from "@remotion/google-fonts/BreeSerif";
 import { Background } from "./Background";
 import Subtitle from "./Subtitle";
-import { calculateFrameTiming, getAudioPath } from "../lib/utils";
+import { calculateFrameTiming } from "../lib/utils";
 
 export const aiVideoSchema = z.object({
   timeline: TimelineSchema.nullable(),
@@ -91,24 +90,6 @@ export const AIVideo: React.FC<z.infer<typeof aiVideoSchema>> = ({
         );
       })}
 
-      {timeline.audio.map((element, index) => {
-        const { startFrame, duration } = calculateFrameTiming(
-          element.startMs,
-          element.endMs,
-          { addIntroOffset: true },
-        );
-
-        return (
-          <Sequence
-            key={`element-${index}`}
-            from={startFrame}
-            durationInFrames={duration}
-            premountFor={3 * FPS}
-          >
-            <Audio src={staticFile(getAudioPath(id, element.audioUrl))} />
-          </Sequence>
-        );
-      })}
     </AbsoluteFill>
   );
 };

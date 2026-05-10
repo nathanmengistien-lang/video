@@ -1,8 +1,6 @@
 import z from "zod";
 import * as fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
-import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
-import { CharacterAlignmentResponseModel } from "@elevenlabs/elevenlabs-js/api";
 import { IMAGE_HEIGHT, IMAGE_WIDTH } from "../src/lib/constants";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
@@ -175,31 +173,3 @@ export const getGenerateImageDescriptionPrompt = (storyText: string) => {
   return prompt;
 };
 
-const saveBase64ToMp3 = (data: string, path: string) => {
-  const buffer = Buffer.from(data, "base64");
-  fs.writeFileSync(path, buffer as Uint8Array);
-};
-
-export const generateVoice = async (
-  text: string,
-  apiKey: string,
-  path: string,
-): Promise<CharacterAlignmentResponseModel> => {
-  const client = new ElevenLabsClient({
-    environment: "https://api.elevenlabs.io",
-    apiKey,
-  });
-
-  const voiceId = "21m00Tcm4TlvDq8ikWAM";
-
-  const data = await client.textToSpeech.convertWithTimestamps(voiceId, {
-    text,
-  });
-
-  if (!data.alignment || !data.alignment.characterEndTimesSeconds.length) {
-    throw new Error("ElevenLabs response missing timestamps");
-  }
-
-  saveBase64ToMp3(data.audioBase64, path);
-  return data.alignment;
-};

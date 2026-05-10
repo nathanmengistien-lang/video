@@ -1,7 +1,6 @@
 import {
   claudeStructuredCompletion,
   fetchUnsplashImage,
-  generateVoice,
   getGenerateImageDescriptionPrompt,
   getGenerateStoryPrompt,
   getTitleFromDescription,
@@ -55,10 +54,6 @@ class ContentFS {
     return path.join(this.getDir("images"), `${uid}.png`);
   }
 
-  getAudioPath(uid: string): string {
-    return path.join(this.getDir("audio"), `${uid}.mp3`);
-  }
-
   getSlug(): string {
     return this.title
       .toLowerCase()
@@ -71,13 +66,11 @@ export async function generateVideoFromDescription({
   description,
   anthropicApiKey,
   unsplashAccessKey,
-  elevenlabsApiKey,
   onProgress,
 }: {
   description: string;
   anthropicApiKey: string;
   unsplashAccessKey: string;
-  elevenlabsApiKey: string;
   onProgress: (event: ProgressEvent) => void;
 }): Promise<void> {
   setAnthropicApiKey(anthropicApiKey);
@@ -86,10 +79,7 @@ export async function generateVideoFromDescription({
   onProgress({ type: "status", message: "Generating title from description…" });
   const title = await getTitleFromDescription(description);
 
-  onProgress({
-    type: "status",
-    message: `Writing story: "${title}"…`,
-  });
+  onProgress({ type: "status", message: `Writing story: "${title}"…` });
   const storyRes = await claudeStructuredCompletion(
     getGenerateStoryPrompt(title, description),
     StoryScript,
@@ -107,25 +97,20 @@ export async function generateVideoFromDescription({
       text: item.text,
       imageDescription: item.imageDescription,
       uid: uuidv4(),
-      audioTimestamps: {
-        characters: [],
-        characterStartTimesSeconds: [],
-        characterEndTimesSeconds: [],
-      },
     })),
   };
 
   const contentFs = new ContentFS(title);
   contentFs.saveDescriptor(storyWithDetails);
 
-  const total = storyWithDetails.content.length * 2;
+  const total = storyWithDetails.content.length;
   for (let i = 0; i < storyWithDetails.content.length; i++) {
     const storyItem = storyWithDetails.content[i];
 
     onProgress({
       type: "status",
-      message: `Generating image ${i + 1} of ${storyWithDetails.content.length}…`,
-      step: i * 2 + 1,
+      message: `Fetching image ${i + 1} of ${total}…`,
+      step: i + 1,
       total,
     });
     await fetchUnsplashImage({
@@ -135,23 +120,11 @@ export async function generateVideoFromDescription({
         onProgress({
           type: "status",
           message: `Retrying image ${i + 1} (attempt ${attempt + 1})…`,
-          step: i * 2 + 1,
+          step: i + 1,
           total,
         });
       },
     });
-
-    onProgress({
-      type: "status",
-      message: `Generating voice ${i + 1} of ${storyWithDetails.content.length}…`,
-      step: i * 2 + 2,
-      total,
-    });
-    storyItem.audioTimestamps = await generateVoice(
-      storyItem.text,
-      elevenlabsApiKey,
-      contentFs.getAudioPath(storyItem.uid),
-    );
   }
 
   contentFs.saveDescriptor(storyWithDetails);

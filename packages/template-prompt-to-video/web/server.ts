@@ -62,13 +62,11 @@ const server = Bun.serve({
 
       const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
       const unsplashAccessKey = process.env.UNSPLASH_ACCESS_KEY;
-      const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
 
-      if (!anthropicApiKey || !unsplashAccessKey || !elevenlabsApiKey) {
+      if (!anthropicApiKey || !unsplashAccessKey) {
         const missing = [
           !anthropicApiKey && "ANTHROPIC_API_KEY",
           !unsplashAccessKey && "UNSPLASH_ACCESS_KEY",
-          !elevenlabsApiKey && "ELEVENLABS_API_KEY",
         ]
           .filter(Boolean)
           .join(", ");
@@ -104,7 +102,6 @@ const server = Bun.serve({
               description,
               anthropicApiKey,
               unsplashAccessKey,
-              elevenlabsApiKey,
               onProgress: send,
             });
           } catch (err) {

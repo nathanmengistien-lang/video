@@ -6,6 +6,30 @@ import type {
   Timeline,
 } from "../src/lib/types";
 
+const WORDS_PER_SECOND = 2.5;
+const MIN_SLIDE_MS = 3000;
+const MAX_CHUNK_CHARS = 14;
+
+function slideDurationMs(text: string): number {
+  const words = text.split(/\s+/).filter(Boolean).length;
+  return Math.max(MIN_SLIDE_MS, Math.ceil((words / WORDS_PER_SECOND) * 1000));
+}
+
+function splitIntoChunks(text: string): string[] {
+  const words = text.split(" ");
+  const chunks: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if ((current + word).length > MAX_CHUNK_CHARS && current.length > 0) {
+      chunks.push(current.trim());
+      current = "";
+    }
+    current += `${word} `;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
 export const createTimeLineFromStoryWithDetails = (
   storyWithDetails: StoryMetadataWithDetails,
 ): Timeline => {
@@ -21,12 +45,7 @@ export const createTimeLineFromStoryWithDetails = (
 
   for (let i = 0; i < storyWithDetails.content.length; i++) {
     const content = storyWithDetails.content[i];
-
-    const lenMs = Math.ceil(
-      content.audioTimestamps.characterEndTimesSeconds[
-        content.audioTimestamps.characterEndTimesSeconds.length - 1
-      ] * 1000,
-    );
+    const lenMs = slideDurationMs(content.text);
 
     const bgElem: BackgroundElement = {
       startMs: durationMs,
@@ -36,73 +55,25 @@ export const createTimeLineFromStoryWithDetails = (
       exitTransition: "blur",
       animations: getBgAnimations(lenMs, zoomIn),
     };
-
     timeline.elements.push(bgElem);
-    timeline.audio.push({
-      startMs: durationMs,
-      endMs: durationMs + lenMs,
-      audioUrl: content.uid,
-    });
 
-    // hadnle text word by word
-    const words = content.text.split(" ");
-    const {
-      characterStartTimesSeconds: character_start_times_seconds,
-      characterEndTimesSeconds: character_end_times_seconds,
-    } = content.audioTimestamps;
-
-    const MaxSentenseSizeChars = 14;
-
-    let currentText = "";
-    let currentStartMs = character_start_times_seconds[0] * 1000 + durationMs;
-    let currentEndMs = durationMs;
-    let currentCharIndex = 0;
-
-    for (const word of words) {
-      if ((currentText + word).length > MaxSentenseSizeChars) {
-        const textElem: TextElement = {
-          startMs: currentStartMs,
-          endMs: currentEndMs,
-          text: currentText.trim(),
-          position: "center",
-          animations: getTextAnimations(),
-        };
-
-        timeline.text.push(textElem);
-
-        currentText = "";
-        currentStartMs = currentEndMs;
-      }
-
-      currentText += `${word} `;
-      for (let i = 0; i < word.length; i++) {
-        currentEndMs =
-          character_end_times_seconds[currentCharIndex] * 1000 + durationMs;
-        currentCharIndex++;
-      }
-
-      currentEndMs =
-        character_end_times_seconds[currentCharIndex] * 1000 + durationMs;
-      currentCharIndex++;
-    }
-
-    if (currentText.trim().length > 0) {
+    const chunks = splitIntoChunks(content.text);
+    chunks.forEach((chunk, ci) => {
+      const chunkStart =
+        durationMs + Math.round((ci / chunks.length) * lenMs);
+      const chunkEnd =
+        durationMs + Math.round(((ci + 1) / chunks.length) * lenMs);
       const textElem: TextElement = {
-        startMs: currentStartMs,
-        endMs:
-          character_end_times_seconds[character_end_times_seconds.length - 1] *
-            1000 +
-          durationMs,
-        text: currentText.trim(),
+        startMs: chunkStart,
+        endMs: chunkEnd,
+        text: chunk,
         position: "center",
         animations: getTextAnimations(),
       };
-
       timeline.text.push(textElem);
-    }
+    });
 
     durationMs += lenMs;
-
     zoomIn = !zoomIn;
   }
 
@@ -122,18 +93,12 @@ export function findAllSpaceIndexes(str: string) {
 export const getBgAnimations = (durationMs: number, zoomIn: boolean) => {
   const animations: ElementAnimation[] = [];
 
-  const startMs = 0;
-  const endMs = durationMs;
-
-  const scaleFrom = zoomIn ? 1.5 : 1;
-  const scaleTo = zoomIn ? 1 : 1.5;
-
   animations.push({
     type: "scale",
-    from: scaleFrom,
-    to: scaleTo,
-    startMs,
-    endMs,
+    from: zoomIn ? 1.5 : 1,
+    to: zoomIn ? 1 : 1.5,
+    startMs: 0,
+    endMs: durationMs,
   });
 
   return animations;
@@ -144,25 +109,19 @@ export const getTextAnimations = () => {
 
   const durationMs = 300;
 
-  const startMs = 0;
-  const endMs = durationMs;
-
-  // start scale from 0.5 to 0.7
   // eslint-disable-next-line @remotion/deterministic-randomness
   const startScale = Math.random() * 0.2 + 0.5;
-  // dont scale with 40% chance
   // eslint-disable-next-line @remotion/deterministic-randomness
   const dontScale = Math.random() > 0.6;
   // eslint-disable-next-line @remotion/deterministic-randomness
   const bounces = Math.random() > 0.5;
 
-  // scale
   animations.push({
     type: "scale",
     from: dontScale ? 1 : startScale,
     to: bounces ? 1.25 : 1,
-    startMs,
-    endMs,
+    startMs: 0,
+    endMs: durationMs,
   });
 
   if (bounces) {
@@ -170,8 +129,8 @@ export const getTextAnimations = () => {
       type: "scale",
       from: 1.25,
       to: 1,
-      startMs: endMs,
-      endMs: endMs + 200,
+      startMs: durationMs,
+      endMs: durationMs + 200,
     });
   }
 

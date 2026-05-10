@@ -9,7 +9,6 @@ import * as dotenv from "dotenv";
 import {
   claudeStructuredCompletion,
   fetchUnsplashImage,
-  generateVoice,
   getGenerateImageDescriptionPrompt,
   getGenerateStoryPrompt,
   setAnthropicApiKey,
@@ -32,7 +31,6 @@ dotenv.config({ quiet: true });
 interface GenerateOptions {
   anthropicApiKey?: string;
   unsplashAccessKey?: string;
-  elevenlabsApiKey?: string;
   title?: string;
   topic?: string;
 }
@@ -73,11 +71,6 @@ class ContentFS {
     return path.join(dirPath, `${uid}.png`);
   }
 
-  getAudioPath(uid: string): string {
-    const dirPath = this.getDir("audio");
-    return path.join(dirPath, `${uid}.mp3`);
-  }
-
   getSlug(): string {
     return this.title
       .toLowerCase()
@@ -92,8 +85,6 @@ async function generateStory(options: GenerateOptions) {
       options.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
     let unsplashAccessKey =
       options.unsplashAccessKey || process.env.UNSPLASH_ACCESS_KEY;
-    let elevenlabsApiKey =
-      options.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY;
 
     if (!anthropicApiKey) {
       const response = await prompts({
@@ -125,23 +116,6 @@ async function generateStory(options: GenerateOptions) {
       }
 
       unsplashAccessKey = response.unsplashAccessKey;
-    }
-
-    if (!elevenlabsApiKey) {
-      const response = await prompts({
-        type: "password",
-        name: "elevenlabsApiKey",
-        message: "Enter your ElevenLabs API key:",
-        validate: (value) =>
-          value.length > 0 || "ElevenLabs API key is required",
-      });
-
-      if (!response.elevenlabsApiKey) {
-        console.log(chalk.red("API key is required. Exiting..."));
-        process.exit(1);
-      }
-
-      elevenlabsApiKey = response.elevenlabsApiKey;
     }
 
     let { title, topic } = options;
@@ -202,11 +176,6 @@ async function generateStory(options: GenerateOptions) {
         text: item.text,
         imageDescription: item.imageDescription,
         uid: uuidv4(),
-        audioTimestamps: {
-          characters: [],
-          characterStartTimesSeconds: [],
-          characterEndTimesSeconds: [],
-        },
       };
 
       storyWithDetails.content.push(contentWithDetails);
@@ -215,32 +184,26 @@ async function generateStory(options: GenerateOptions) {
     const contentFs = new ContentFS(title!);
     contentFs.saveDescriptor(storyWithDetails);
 
-    const imagesSpinner = ora("Generating images and voice...").start();
+    const imagesSpinner = ora("Fetching images...").start();
     for (let i = 0; i < storyWithDetails.content.length; i++) {
       const storyItem = storyWithDetails.content[i];
-      imagesSpinner.text = `[${i * 2 + 1}/${storyWithDetails.content.length * 2}] Generating image for ${storyItem.text}`;
+      const label = `[${i + 1}/${storyWithDetails.content.length}]`;
+      imagesSpinner.text = `${label} Fetching image…`;
       await fetchUnsplashImage({
         query: storyItem.imageDescription,
         path: contentFs.getImagePath(storyItem.uid),
         onRetry: (attempt) => {
-          imagesSpinner.text = `[${i * 2 + 1}/${storyWithDetails.content.length * 2}] Fetching image for ${storyItem.text} (retry ${attempt + 1})`;
+          imagesSpinner.text = `${label} Fetching image (retry ${attempt + 1})…`;
         },
       });
-      imagesSpinner.text = `[${i * 2 + 2}/${storyWithDetails.content.length * 2}] Generating voice for ${storyItem.text}`;
-      const timings = await generateVoice(
-        storyItem.text,
-        elevenlabsApiKey!,
-        contentFs.getAudioPath(storyItem.uid),
-      );
-      storyItem.audioTimestamps = timings;
     }
     contentFs.saveDescriptor(storyWithDetails);
-    imagesSpinner.succeed(chalk.green("Images generated!"));
+    imagesSpinner.succeed(chalk.green("Images fetched!"));
 
-    const finalSpinner = ora("Generating final result...").start();
+    const finalSpinner = ora("Building timeline...").start();
     const timeline = createTimeLineFromStoryWithDetails(storyWithDetails);
     contentFs.saveTimeline(timeline);
-    finalSpinner.succeed(chalk.green("Final result generated!"));
+    finalSpinner.succeed(chalk.green("Timeline built!"));
 
     console.log(chalk.green.bold("\n✨ Story generation complete!\n"));
     console.log("Run " + chalk.blue("npm run dev") + " to preview the story");
