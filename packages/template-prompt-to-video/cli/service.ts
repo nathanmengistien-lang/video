@@ -113,6 +113,16 @@ export const generateAiImage = async ({
   throw lastError!;
 };
 
+export const getTitleFromDescription = async (
+  description: string,
+): Promise<string> => {
+  const result = await openaiStructuredCompletion(
+    `Generate a short, catchy title (5 words max, no quotes) for a video described as: "${description}"`,
+    z.object({ title: z.string() }),
+  );
+  return result.title;
+};
+
 export const getGenerateStoryPrompt = (title: string, topic: string) => {
   const prompt = `Write a short story with title [${title}] (its topic is [${topic}]).
    You must follow best practices for great storytelling. 

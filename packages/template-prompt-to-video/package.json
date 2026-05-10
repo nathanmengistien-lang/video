@@ -7,7 +7,8 @@
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc",
-    "gen": "bun cli/cli.ts"
+    "gen": "bun cli/cli.ts",
+    "web": "bun web/server.ts"
   },
   "repository": {},
   "license": "UNLICENSED",
