@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Create AI videos using remotion",
   "scripts": {
-    "setup": "cd ../.. && node_modules/.bin/turbo run make --filter=template-ai-video...",
+    "setup": "cd ../.. && bun install && node_modules/.bin/turbo run make --filter=template-ai-video...",
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
