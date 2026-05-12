@@ -1,0 +1,139 @@
+import z from "zod";
+import * as fs from "fs";
+import Anthropic from "@anthropic-ai/sdk";
+import { zodToJsonSchema } from "zod-to-json-schema";
+import { IMAGE_HEIGHT, IMAGE_WIDTH } from "../src/constants";
+
+let anthropicApiKey: string | null = null;
+let unsplashAccessKey: string | null = null;
+
+export const setAnthropicApiKey = (key: string) => { anthropicApiKey = key; };
+export const setUnsplashAccessKey = (key: string) => { unsplashAccessKey = key; };
+
+export const claudeStructuredCompletion = async <T>(
+  prompt: string,
+  schema: z.ZodType<T>,
+): Promise<T> => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsonSchema = zodToJsonSchema(schema) as any;
+  const client = new Anthropic({ apiKey: anthropicApiKey! });
+
+  const response = await client.messages.create({
+    model: "claude-opus-4-7",
+    max_tokens: 4096,
+    tools: [
+      {
+        name: "structured_output",
+        description: "Return the result in the required structured format",
+        input_schema: {
+          type: "object" as const,
+          properties: jsonSchema.properties ?? {},
+          required: jsonSchema.required ?? [],
+          additionalProperties: false,
+        },
+      },
+    ],
+    tool_choice: { type: "tool", name: "structured_output" },
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const toolUse = response.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
+  );
+  if (!toolUse) throw new Error("No structured output returned by Claude");
+  return schema.parse(toolUse.input);
+};
+
+const STOP_WORDS = new Set([
+  "a", "an", "the", "of", "in", "on", "at", "to", "for", "with",
+  "and", "or", "but", "is", "are", "was", "were", "be", "been",
+  "this", "that", "its", "their", "from", "into", "by", "as",
+]);
+
+function fallbackQuery(query: string): string {
+  const word = query
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .find((w) => w.length > 3 && !STOP_WORDS.has(w));
+  return word ?? query.split(/\s+/)[0];
+}
+
+async function unsplashSearch(q: string): Promise<string | null> {
+  const res = await fetch(
+    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&orientation=portrait&per_page=1`,
+    { headers: { Authorization: `Client-ID ${unsplashAccessKey}` } },
+  );
+  if (!res.ok) throw new Error(`Unsplash error: ${await res.text()}`);
+  const data = await res.json();
+  const photo = data.results?.[0];
+  return photo ? photo.urls.raw : null;
+}
+
+export const fetchUnsplashImage = async ({
+  query,
+  path,
+  onRetry,
+}: {
+  query: string;
+  path: string;
+  onRetry: (attempt: number) => void;
+}) => {
+  const maxRetries = 3;
+  let attempt = 0;
+  let lastError: Error | null = null;
+
+  while (attempt < maxRetries) {
+    try {
+      let rawUrl = await unsplashSearch(query);
+      if (!rawUrl) {
+        rawUrl = await unsplashSearch(fallbackQuery(query));
+      }
+      if (!rawUrl) throw new Error(`No Unsplash results for: "${query}"`);
+
+      const imageUrl = `${rawUrl}&w=${IMAGE_WIDTH}&h=${IMAGE_HEIGHT}&fit=crop&auto=format`;
+      const imageRes = await fetch(imageUrl);
+      if (!imageRes.ok) throw new Error(`Image download error: ${imageRes.status}`);
+
+      const buffer = Buffer.from(await imageRes.arrayBuffer());
+      fs.writeFileSync(path, buffer);
+      return;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      attempt++;
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1000));
+        onRetry(attempt);
+      }
+    }
+  }
+  throw lastError!;
+};
+
+export const getTitleFromDescription = async (description: string): Promise<string> => {
+  const result = await claudeStructuredCompletion(
+    `Generate a short, catchy title (5 words max, no quotes) for a video about: "${description}"`,
+    z.object({ title: z.string() }),
+  );
+  return result.title;
+};
+
+export const getGenerateStoryPrompt = (title: string, topic: string) =>
+  `Write a short story with title [${title}] (its topic is [${topic}]).
+  You must follow best practices for great storytelling.
+  The script must be 8-10 sentences long.
+  Story events can be from anywhere in the world, but text must be translated into English language.
+  Result without any formatting and title, as one continuous text.
+  Skip new lines.`;
+
+export const getGenerateImageDescriptionPrompt = (storyText: string) =>
+  `You are given story text.
+  Generate (in English) 5-8 very detailed image descriptions for this story.
+  Return their description as json array with story sentences matched to images.
+  Story sentences must be in the same order as in the story and their content must be preserved.
+  Each image must match 1-2 sentence from the story.
+  Images must show story content in a way that is visually appealing and engaging, not just characters.
+  Give output in json format:
+  [{ "text": "....", "imageDescription": "..." }]
+
+  <story>${storyText}</story>`;

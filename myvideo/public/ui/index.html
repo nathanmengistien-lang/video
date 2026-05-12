@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prompt to Video</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg: #0e0e10;
+        --surface: #18181b;
+        --border: #27272a;
+        --accent: #6366f1;
+        --accent-hover: #4f46e5;
+        --text: #fafafa;
+        --muted: #71717a;
+        --radius: 12px;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 48px 16px 80px;
+      }
+
+      .container { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 32px; }
+
+      header { display: flex; flex-direction: column; gap: 8px; }
+
+      .badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--accent); background: rgba(99,102,241,0.12);
+        padding: 4px 10px; border-radius: 99px; width: fit-content;
+      }
+
+      h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+      .subtitle { font-size: 16px; color: var(--muted); line-height: 1.5; }
+
+      .card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 24px;
+        display: flex; flex-direction: column; gap: 16px;
+      }
+
+      label { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+
+      textarea {
+        width: 100%; min-height: 130px; background: var(--bg);
+        border: 1px solid var(--border); border-radius: 8px;
+        color: var(--text); font-family: inherit; font-size: 15px; line-height: 1.6;
+        padding: 14px 16px; resize: vertical; transition: border-color 0.15s; outline: none;
+      }
+      textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+      textarea::placeholder { color: var(--muted); }
+
+      .examples { display: flex; flex-wrap: wrap; gap: 8px; }
+      .example-chip {
+        font-size: 12px; padding: 5px 12px; border-radius: 99px;
+        border: 1px solid var(--border); background: transparent;
+        color: var(--muted); cursor: pointer; transition: border-color 0.15s, color 0.15s;
+      }
+      .example-chip:hover { border-color: var(--accent); color: var(--text); }
+
+      button[type="submit"] {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        width: 100%; padding: 14px 24px; background: var(--accent); color: #fff;
+        font-family: inherit; font-size: 15px; font-weight: 600;
+        border: none; border-radius: 8px; cursor: pointer;
+        transition: background 0.15s, opacity 0.15s;
+      }
+      button[type="submit"]:hover:not(:disabled) { background: var(--accent-hover); }
+      button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      #progress-section { display: none; flex-direction: column; gap: 16px; }
+      #progress-section.visible { display: flex; }
+
+      .progress-header { display: flex; align-items: center; justify-content: space-between; }
+      .progress-title { font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      .progress-pct { font-size: 13px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+      .track { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
+      .fill { height: 100%; background: var(--accent); border-radius: 99px; width: 0%; transition: width 0.4s ease; }
+
+      .log { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; min-height: 20px; }
+      .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      #success-section { display: none; flex-direction: column; gap: 16px; }
+      #success-section.visible { display: flex; }
+
+      .success-banner {
+        display: flex; align-items: center; gap: 12px;
+        background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25);
+        border-radius: var(--radius); padding: 16px 20px;
+      }
+      .success-icon { font-size: 22px; flex-shrink: 0; }
+      .success-text { display: flex; flex-direction: column; gap: 2px; }
+      .success-text strong { font-size: 15px; font-weight: 600; }
+      .success-text span { font-size: 13px; color: var(--muted); }
+
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+      .action-btn {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 10px 18px; border-radius: 8px; font-family: inherit;
+        font-size: 14px; font-weight: 600; text-decoration: none;
+        cursor: pointer; border: none; transition: background 0.15s, color 0.15s;
+      }
+      .action-btn.primary { background: var(--accent); color: #fff; }
+      .action-btn.primary:hover { background: var(--accent-hover); }
+      .action-btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+      .action-btn.secondary:hover { border-color: var(--accent); }
+
+      #error-section { display: none; }
+      #error-section.visible { display: block; }
+      .error-banner {
+        display: flex; align-items: flex-start; gap: 12px;
+        background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+        border-radius: var(--radius); padding: 16px 20px; font-size: 14px; line-height: 1.5;
+      }
+      .error-icon { flex-shrink: 0; font-size: 18px; }
+
+      footer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 16px; }
+      footer a { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <div class="badge">⚡ AI-Powered</div>
+        <h1>Prompt&nbsp;to&nbsp;Video</h1>
+        <p class="subtitle">
+          Type a description and get a narrated, illustrated video —
+          complete with AI-matched images and animated text.
+        </p>
+      </header>
+
+      <div class="card">
+        <label for="description">Video description</label>
+        <textarea
+          id="description"
+          placeholder="e.g. The rise and fall of the Roman Empire — fascinating facts about one of history's greatest civilizations"
+          autofocus
+        ></textarea>
+
+        <div>
+          <label style="margin-bottom: 10px; display: block;">Try an example</label>
+          <div class="examples">
+            <button class="example-chip" data-text="How black holes are formed and why they are the most mysterious objects in the universe">Black holes</button>
+            <button class="example-chip" data-text="The surprising history of pizza, from ancient flatbreads to the modern slice">History of pizza</button>
+            <button class="example-chip" data-text="Five bizarre deep-sea creatures that look like they came from another planet">Deep-sea creatures</button>
+            <button class="example-chip" data-text="The life and legacy of Nikola Tesla, the forgotten genius who changed the world">Nikola Tesla</button>
+          </div>
+        </div>
+
+        <button type="submit" id="generate-btn">
+          <span id="btn-text">Generate Video</span>
+        </button>
+      </div>
+
+      <div id="progress-section" class="card">
+        <div class="progress-header">
+          <span class="progress-title">Generating</span>
+          <span class="progress-pct" id="pct">0%</span>
+        </div>
+        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="log">
+          <div class="spinner"></div>
+          <span id="log-msg">Starting…</span>
+        </div>
+      </div>
+
+      <div id="success-section">
+        <div class="success-banner">
+          <div class="success-icon">🎬</div>
+          <div class="success-text">
+            <strong id="success-title">Video ready!</strong>
+            <span>Open Remotion Studio to preview and render your video.</span>
+          </div>
+        </div>
+        <div class="actions">
+          <a class="action-btn primary" href="http://localhost:3000" target="_blank" rel="noopener">
+            Open Remotion Studio →
+          </a>
+          <button class="action-btn secondary" id="reset-btn">Generate another</button>
+        </div>
+      </div>
+
+      <div id="error-section">
+        <div class="error-banner">
+          <span class="error-icon">⚠️</span>
+          <span id="error-msg"></span>
+        </div>
+      </div>
+
+      <footer>
+        Powered by <a href="https://remotion.dev" target="_blank">Remotion</a> &amp;
+        <a href="https://anthropic.com" target="_blank">Claude</a>
+      </footer>
+    </div>
+
+    <script>
+      const textarea = document.getElementById("description");
+      const generateBtn = document.getElementById("generate-btn");
+      const btnText = document.getElementById("btn-text");
+      const progressSection = document.getElementById("progress-section");
+      const successSection = document.getElementById("success-section");
+      const errorSection = document.getElementById("error-section");
+      const fill = document.getElementById("fill");
+      const pct = document.getElementById("pct");
+      const logMsg = document.getElementById("log-msg");
+      const successTitle = document.getElementById("success-title");
+      const errorMsg = document.getElementById("error-msg");
+      const resetBtn = document.getElementById("reset-btn");
+
+      document.querySelectorAll(".example-chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          textarea.value = chip.dataset.text;
+          textarea.focus();
+        });
+      });
+
+      function setProgress(msg, step, total) {
+        logMsg.textContent = msg;
+        if (step != null && total != null) {
+          const p = Math.round((step / total) * 100);
+          fill.style.width = p + "%";
+          pct.textContent = p + "%";
+        }
+      }
+
+      function showError(msg) {
+        errorMsg.textContent = msg;
+        errorSection.classList.add("visible");
+        progressSection.classList.remove("visible");
+        generateBtn.disabled = false;
+        btnText.textContent = "Generate Video";
+      }
+
+      function reset() {
+        successSection.classList.remove("visible");
+        errorSection.classList.remove("visible");
+        progressSection.classList.remove("visible");
+        fill.style.width = "0%";
+        pct.textContent = "0%";
+        logMsg.textContent = "Starting…";
+        generateBtn.disabled = false;
+        btnText.textContent = "Generate Video";
+        textarea.focus();
+      }
+
+      resetBtn.addEventListener("click", reset);
+
+      generateBtn.addEventListener("click", async () => {
+        const description = textarea.value.trim();
+        if (!description) { textarea.focus(); return; }
+
+        generateBtn.disabled = true;
+        btnText.textContent = "Generating…";
+        successSection.classList.remove("visible");
+        errorSection.classList.remove("visible");
+        progressSection.classList.add("visible");
+        fill.style.width = "5%";
+        pct.textContent = "5%";
+        logMsg.textContent = "Sending request…";
+
+        try {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ description }),
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showError(data.error || `Server error ${res.status}`);
+            return;
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              let event;
+              try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+              if (event.type === "status") {
+                setProgress(event.message, event.step, event.total);
+              } else if (event.type === "done") {
+                fill.style.width = "100%";
+                pct.textContent = "100%";
+                progressSection.classList.remove("visible");
+                successTitle.textContent = `"${event.title}" is ready!`;
+                successSection.classList.add("visible");
+                generateBtn.disabled = false;
+                btnText.textContent = "Generate Video";
+              } else if (event.type === "error") {
+                showError(event.message);
+              }
+            }
+          }
+        } catch (err) {
+          showError(String(err));
+        }
+      });
+
+      textarea.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) generateBtn.click();
+      });
+    </script>
+  </body>
+</html>
